@@ -31,6 +31,7 @@ function App({ initial }) {
   const [showCapture, setShowCapture] = useState(false);
   const [sharing, setSharing] = useState(false);
   const linkInput = useRef(null);
+  const captureDialog = useRef(null);
   const state = useRef({ revision: initial.revision, elements: initial.elements, files: initial.files, signature: '', generation: 0, saved: 0, ready: false, saving: null, failed: false, timer: null });
 
   async function flush() {
@@ -65,10 +66,13 @@ function App({ initial }) {
     const s = state.current;
     s.elements = api.getSceneElementsIncludingDeleted(); s.files = api.getFiles();
     s.signature = signature(s.elements, s.files); s.ready = true;
-    const selection = new URL(location.href).searchParams.get('selection');
-    if (selection) request(`selections/${encodeURIComponent(selection)}`).then(saved => {
-      setCapture(saved);
-      api.scrollToContent(convertToExcalidrawElements([{ type: 'rectangle', ...saved.bounds }]), { fitToViewport: true, viewportZoomFactor: 0.8 });
+    const query = new URL(location.href).searchParams;
+    const selection = query.get('selection'), entry = query.get('entry');
+    if (selection && entry) setError('A link must refer to one selection or one agent post');
+    else if (selection || entry) request(`${entry ? 'posts' : 'selections'}/${encodeURIComponent(entry || selection)}`).then(saved => {
+      setCapture({ ...saved, kind: entry ? 'post' : 'selection' });
+      const live = api.getSceneElements().filter(element => saved.elementIds.includes(element.id));
+      api.scrollToContent(entry && live.length ? live : convertToExcalidrawElements([{ type: 'rectangle', ...saved.bounds }]), { fitToViewport: true, viewportZoomFactor: 0.8 });
     }).catch(error => setError(error.message));
     const beforeUnload = event => {
       if (s.generation !== s.saved) { event.preventDefault(); event.returnValue = ''; }
@@ -128,6 +132,7 @@ function App({ initial }) {
     <header>
       <div className="heading"><strong>{initial.project.name}</strong><span>Project canvas · Tailnet only</span></div>
       <span className="status" role="status">{status}</span>
+      {initial.posts?.length > 0 && <select aria-label="Agent reviews" defaultValue={new URL(location.href).searchParams.get('entry') || ''} onChange={event => { if (!event.target.value) return; const url = new URL(location.href); url.search = ''; url.searchParams.set('entry', event.target.value); location.assign(url.href); }}><option value="">Agent reviews ({initial.posts.length})</option>{[...initial.posts].reverse().map(post => <option key={post.id} value={post.id}>{post.title}</option>)}</select>}
       <button onClick={downloadDraft}>Download draft</button>
       <button onClick={() => { if (state.current.generation === state.current.saved || confirm('Discard unsaved changes? Download your draft first to keep them.')) location.reload(); }}>Reload board</button>
       <div className="share-controls">
@@ -137,14 +142,14 @@ function App({ initial }) {
     </header>
     {error && <div className="error" role="alert">{error} <button onClick={() => setError('')}>Dismiss</button></div>}
     {link && <div className="link-row"><input ref={linkInput} aria-label="Selection link" readOnly value={link} /><button onClick={copy}>Copy link</button></div>}
-    {capture && <div className="capture-row"><span>Saved selection · {capture.note || 'No note'} · {new Date(capture.createdAt).toLocaleString()}</span><button onClick={() => setShowCapture(true)}>View saved capture</button></div>}
+    {capture && <div className="capture-row"><span>{capture.kind === 'post' ? `Agent review · ${capture.title}` : `Saved selection · ${capture.note || 'No note'}`} · {new Date(capture.createdAt).toLocaleString()}</span><button onClick={() => setShowCapture(true)}>{capture.kind === 'post' ? 'View original content' : 'View saved capture'}</button></div>}
     <main>
       <Excalidraw excalidrawAPI={setAPI} initialData={{ elements: initial.elements, files: initial.files, appState: { viewBackgroundColor: '#ffffff' }, scrollToContent: true }} onChange={onChange} validateEmbeddable={() => false} UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false, export: false } }}>
         <MainMenu><MainMenu.DefaultItems.SaveAsImage /><MainMenu.DefaultItems.ToggleTheme /><MainMenu.DefaultItems.ChangeCanvasBackground /></MainMenu>
       </Excalidraw>
       {!hasElements && <p className="hint">Drop a PNG, JPEG or WebP here. Draw or annotate, select an area, then share its link with Pi.</p>}
     </main>
-    {showCapture && <div className="modal" role="dialog" aria-modal="true" aria-label="Saved selection capture"><div><button autoFocus onClick={() => setShowCapture(false)}>Back to live board</button><p>{capture.note}</p><img src={capture.image} alt="Immutable annotated selection" /><p>Captured {new Date(capture.createdAt).toLocaleString()}. The live board may have changed.</p></div></div>}
+    {showCapture && <dialog className="capture-dialog" ref={node => { captureDialog.current = node; if (node && !node.open) node.showModal(); }} onClose={() => setShowCapture(false)} aria-label={capture.kind === 'post' ? 'Original agent review' : 'Saved selection capture'}><button autoFocus onClick={() => captureDialog.current.close()}>Back to live board</button>{capture.title && <h2>{capture.title}</h2>}{capture.text && <pre>{capture.text}</pre>}{capture.note && <p>{capture.note}</p>}{capture.image && <img src={capture.image} alt={capture.kind === 'post' ? 'Agent-supplied review image' : 'Immutable annotated selection'} />}<p>{capture.kind === 'post' ? 'Agent-supplied original. Comments and drawings are not approval for protected actions.' : 'Saved capture. The live board may have changed.'} · {new Date(capture.createdAt).toLocaleString()}</p></dialog>}
   </div>;
 }
 

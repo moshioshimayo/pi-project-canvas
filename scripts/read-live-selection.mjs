@@ -1,7 +1,7 @@
 // Live UAT companion: use Pi's real loader/tool to inspect a browser-created selection.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -18,7 +18,9 @@ const result = await definition.execute('live-uat', { selection: process.argv[2]
 assert.equal(result.content[1].type, 'image');
 const metadata = JSON.parse(result.content[0].text);
 const original = await definition.execute('live-uat-original', { selection: process.argv[2], asset: metadata.originalImageIds[0] }, undefined, undefined, { cwd: root });
-assert.ok(Buffer.from(original.content[1].data, 'base64').length > 10000);
+const originalBytes = Buffer.from(original.content[1].data, 'base64');
+assert.equal(originalBytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+if (process.argv[3]) assert.deepEqual(originalBytes, readFileSync(process.argv[3]));
 mkdirSync(join(root, '.uat'), { recursive: true });
 writeFileSync(join(root, '.uat/agent-selection.png'), Buffer.from(result.content[1].data, 'base64'));
 writeFileSync(join(root, '.uat/agent-proof.json'), JSON.stringify({ ...metadata, cropBytes: Buffer.from(result.content[1].data, 'base64').length, originalBytes: Buffer.from(original.content[1].data, 'base64').length }, null, 2));

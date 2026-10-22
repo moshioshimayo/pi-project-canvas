@@ -1,12 +1,29 @@
 {
   "name": "pi-project-canvas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A private, project-shared Excalidraw board for Pi over Tailscale",
+  "repository": { "type": "git", "url": "https://github.com/moshioshimayo/pi-project-canvas.git" },
+  "homepage": "https://github.com/moshioshimayo/pi-project-canvas#readme",
   "type": "module",
   "license": "MIT",
-  "keywords": ["pi-package", "excalidraw", "tailscale"],
-  "files": ["index.ts", "lib/", "dist/", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
-  "pi": { "extensions": ["./index.ts"] },
+  "keywords": [
+    "pi-package",
+    "excalidraw",
+    "tailscale"
+  ],
+  "files": [
+    "index.ts",
+    "lib/",
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",
@@ -23,5 +40,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

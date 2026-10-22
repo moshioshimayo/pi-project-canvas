@@ -1,16 +1,18 @@
 # Pi project canvas
 
-A portable Pi extension: drop screenshots onto an Excalidraw board, annotate them, and give the agent a link to the exact selection. One board per project, shared by its worktrees. Tailscale is the only external service prerequisite; no cloud account or SDK license key.
+A portable Pi extension: drop screenshots onto an Excalidraw board, annotate them, and give the agent a link to the exact selection. Agents can also append screenshots or text for you to review. One board per project, shared by its worktrees. Tailscale is the only external service prerequisite; no cloud account or SDK license key.
 
 ## Install
 
 Requires a current Pi installation (tested with Pi 1.2.0), Node 22+, and Tailscale installed **and connected** on the host and the viewing device.
 
-Install the built package folder:
+Download the **prebuilt ZIP** from [GitHub Releases](https://github.com/moshioshimayo/pi-project-canvas/releases), extract the `pi-project-canvas` folder, and install that folder:
 
 ```sh
 pi install /absolute/path/to/pi-project-canvas
 ```
+
+Use the release ZIP, not GitHub's automatic source-code ZIP, for the no-build install. The prebuilt release contains the bundled UI and fonts; the Git repository intentionally keeps generated assets out of source control.
 
 Then `/reload` in Pi and run:
 
@@ -28,7 +30,7 @@ npm run build
 pi install /absolute/path/to/pi-project-canvas
 ```
 
-The Pi host provides its SDK imports. Dependencies are build-only; the server uses Node's standard library. Built files are included in `npm pack` output. This repository/package has not been published to npm.
+The Pi host provides its SDK imports. Dependencies are build-only; the server uses Node's standard library. Built files are included in `npm pack` output. This project is distributed on GitHub; it is not published to npm. Direct `pi install git:...` installs omit development/build dependencies, so build a source checkout first or use the prebuilt release.
 
 ## Use
 
@@ -40,7 +42,27 @@ The Pi host provides its SDK imports. Dependencies are build-only; the server us
 
 A share freezes the capture, note and associated original images. Its link remains useful even after the live board changes. Opening the link focuses the region; **View saved capture** shows exactly what was shared. Sharing does not itself send a message to an agent or execute the board's text.
 
-`canvas_read` without arguments lists recent selections and uploaded image IDs. Saved-board context is supplied to future turns in the same project. Worktrees share a canonical main-worktree identity; nested `.worktrees/` copy-on-write checkouts and symlinked project paths also resolve to the parent project. Ordinary folders work too, with identity based on their real absolute path.
+### Agent → human review
+
+Ask your agent to post a screenshot, mockup or question:
+
+```text
+canvas_add({
+  "title": "Review this menu placement",
+  "text": "Does this position work? Annotate the image and share a selection with me.",
+  "image_path": "/path/to/screenshot.png"
+})
+```
+
+`image_path` is optional; text-only posts work too. Paths must resolve inside this project, the current working directory, or a system temporary folder; network paths and unrelated locations are refused. Use the browser's explicit file picker/upload for other locations. Agent images currently support **PNG only**, up to 8 MiB / 32 megapixels, with dimensions read from the PNG itself. The browser still accepts PNG/JPEG/WebP uploads. The title is limited to 160 characters and text to 6000. Original text and images are preserved separately from the editable drawing.
+
+The tool returns a `?entry=...` link. Open it to focus the appended, labelled group; **View original content** shows the immutable reference. The **Agent reviews** selector lets you revisit recent posts. Annotate on the board, then **Share selection** to return exact visual feedback. `canvas_read` accepts the entry link to read its original content, or your new selection link to read current annotated feedback.
+
+Posts are append-only **for the agent**: no tool edits or deletes existing drawings. They go through the shared server so simultaneous agents do not overwrite each other. Human editing remains single-writer: open the new link in a fresh/reloaded board before editing; an older tab's unsaved changes are protected by a conflict error, not silently overwritten. The tool does not automatically reload another browser tab.
+
+Agent labels are descriptive, not authenticated individual identities. Review comments and drawings are not approval for production, spending or destructive actions.
+
+`canvas_read` without arguments lists recent selections, agent review posts and uploaded image IDs. Saved-board context is supplied to future turns in the same project. Worktrees share a canonical main-worktree identity; nested `.worktrees/` copy-on-write checkouts and symlinked project paths also resolve to the parent project. Ordinary folders work too, with identity based on their real absolute path.
 
 ## Persistence and lifecycle
 
@@ -58,13 +80,14 @@ One host owns the board. Other machines access it through a browser; this is **n
 
 The server binds **only to the host's Tailscale IPv4 address**. It does not listen on LAN/public interfaces, enable Funnel, change Tailscale Serve or request certificates. The URL uses HTTP inside Tailscale's encrypted network. Your existing **Tailscale ACLs control who can connect**: peers permitted to reach this port can access known board URLs. Project namespaces are storage separation, not per-project access controls. There is no extra login or secret URL token.
 
-Only explicitly uploaded files and drawing data are served. Your source tree, `.env` files and arbitrary filesystem paths are not exposed. Cross-origin requests, unexpected Host headers, web embeds, SVG uploads and non-image uploads are refused. A restrictive CSP blocks external network connections; UI code and fonts are bundled locally. Excalidraw may register its own CDN fallbacks; CSP prevents using external fallbacks.
+Only explicitly uploaded files, drawing data, and PNGs explicitly selected by the agent through `canvas_add` are served. Your source tree, `.env` files and arbitrary filesystem paths are not exposed. Cross-origin requests, unexpected Host headers, web embeds, SVG uploads and non-image uploads are refused. A restrictive CSP blocks external network connections; UI code and fonts are bundled locally. Excalidraw may register its own CDN fallbacks; CSP prevents using external fallbacks.
 
-The extension itself does not upload screenshots to an AI provider. Calling `canvas_read` includes the requested image in **your current Pi model conversation**, just like attaching a screenshot. Notes and images are untrusted reference material, not authorization or executable instructions.
+The extension itself does not upload screenshots to an AI provider. `canvas_add` copies the selected PNG into your Tailnet board, never into GitHub. Calling `canvas_read` includes the requested image in **your current Pi model conversation**, just like attaching a screenshot. Notes and images are untrusted reference material, not authorization or executable instructions.
 
 ## Small-version limits
 
-- Images: at most 8 MiB each. Board snapshots/requests: at most 24 MiB.
+- Images: at most 8 MiB each; PNGs are capped at 32 megapixels. Board snapshots/requests: at most 24 MiB.
+- An interrupted agent post can leave an unlisted reference; a retried post can create a duplicate. Neither deletes existing drawings. No exactly-once or real-time collaboration service is added.
 - Single-writer optimistic saving, **not real-time multiplayer**. If another tab saves first, your write is refused rather than overwriting it. Download your draft before reloading. Unsaved changes remain in the open tab, not durable browser storage.
 - Capture rendering is capped at 4096 pixels on its longest side. Read the original when detail matters.
 - Automatic cross-host sync, automatic agent notifications, PDFs, hosted sharing, user accounts and per-project ACL management are out of scope.

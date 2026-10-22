@@ -1,0 +1,21 @@
+// Live UAT: call the real registered Pi writer, then read its original through Pi.
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const pi = process.env.PI_CANVAS_PI_DIR || join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), '@earendil-works/pi-coding-agent');
+const { loadExtensions } = await import(pathToFileURL(join(pi, 'dist/core/extensions/loader.js')));
+const loaded = await loadExtensions([join(root, 'index.ts')], root);
+assert.deepEqual(loaded.errors, []);
+const input = { title: 'Review this menu layout', text: 'Does this highlighted menu placement work?\n\nAnnotate the image and Share selection to send feedback.\nSynthetic screenshot fixture; no production data.', ...(process.argv[2] ? { image_path: process.argv[2] } : {}) };
+const posted = await loaded.extensions[0].tools.get('canvas_add').definition.execute('live-agent-post', input, undefined, undefined, { cwd: root });
+const result = JSON.parse(posted.content[0].text);
+const original = await loaded.extensions[0].tools.get('canvas_read').definition.execute('live-post-read', { entry: result.url }, undefined, undefined, { cwd: root });
+assert.equal(JSON.parse(original.content[0].text).text, input.text);
+if (input.image_path) assert.deepEqual(Buffer.from(original.content[1].data, 'base64'), readFileSync(input.image_path));
+mkdirSync(join(root, '.uat'), { recursive: true });
+writeFileSync(join(root, '.uat/agent-post-proof.json'), JSON.stringify({ ...result, textPreserved: true, originalImagePreserved: Boolean(input.image_path) }, null, 2));
+console.log('PASS genuine canvas_add → shared server → canvas_read; immutable original matches input');
+console.log(result.url);

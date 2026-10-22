@@ -27,7 +27,7 @@ try {
   assert.ok(url, '/canvas must return a live URL');
   assert.equal((await fetch(url)).status, 200);
   const health = await (await fetch(new URL('/_health', url))).json();
-  assert.equal(health.service, 'pi-project-canvas/1');
+  assert.equal(health.service, 'pi-project-canvas/2');
   await stopServer(home);
   started = false;
   let closed = false;

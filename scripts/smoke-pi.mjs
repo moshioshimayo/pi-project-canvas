@@ -11,14 +11,20 @@ const piRoot = process.env.PI_CANVAS_PI_DIR || join(execFileSync('npm', ['root',
 try {
   const { loadExtensions } = await import(pathToFileURL(join(piRoot, 'dist/core/extensions/loader.js')));
   const { ensureProject, saveScene, saveSelection } = await import('../lib/store.mjs');
+  const { appendPost } = await import('../lib/posts.mjs');
   const repo = join(fixture, 'project'); mkdirSync(repo);
   const loaded = await loadExtensions([join(packageRoot, 'index.ts')], repo);
   assert.deepEqual(loaded.errors, []);
   const extension = loaded.extensions[0];
   assert.ok(extension.commands.has('canvas'), 'Pi must discover /canvas');
   assert.ok(extension.tools.has('canvas_read'), 'Pi must discover canvas_read');
+  assert.ok(extension.tools.has('canvas_add'), 'Pi must discover canvas_add');
   const tool = extension.tools.get('canvas_read').definition;
   const ctx = { cwd: repo };
+  const writer = extension.tools.get('canvas_add').definition;
+  await assert.rejects(() => writer.execute('blocked', { title: 'No network paths', image_path: '//example.invalid/share/image.png' }, undefined, undefined, ctx), /local image/);
+  await assert.rejects(() => writer.execute('blocked', { title: 'No network paths', image_path: String.raw`\\example.invalid\share\image.png` }, undefined, undefined, ctx), /local image/);
+  if (process.platform !== 'win32') await assert.rejects(() => writer.execute('blocked', { title: 'No unrelated files', image_path: '/etc/hosts' }, undefined, undefined, ctx), /inside this project/);
   const empty = await tool.execute('fixture', {}, undefined, undefined, ctx);
   assert.equal(empty.details.elementCount, 0);
   const project = ensureProject(repo);
@@ -30,5 +36,14 @@ try {
   assert.equal(result.content[1].mimeType, 'image/png');
   assert.equal(result.details.selection, selection.id);
   await assert.rejects(() => tool.execute('fixture', { selection: 'http://100.64.0.1:43827/p/000000000000000000000000/?selection=' + selection.id }, undefined, undefined, ctx), /another project/);
-  console.log('PASS real Pi loader: /canvas + canvas_read discovered; immutable image returned; cross-project link refused');
+  const post = appendPost(project.directory, { title: 'Layout review 👩🏽‍💻', text: 'First line\n\n  Keep whitespace', image: png });
+  const original = await tool.execute('fixture', { entry: post.id }, undefined, undefined, ctx);
+  assert.equal(JSON.parse(original.content[0].text).text, 'First line\n\n  Keep whitespace');
+  assert.equal(original.content[1].mimeType, 'image/png');
+  const textPost = appendPost(project.directory, { title: 'Text only', text: 'Compare the two options.' });
+  const textOnly = await tool.execute('fixture', { selection: `http://100.64.0.1:43827/p/${project.id}/?entry=${textPost.id}` }, undefined, undefined, ctx);
+  assert.equal(textOnly.content.length, 1);
+  assert.equal(JSON.parse(textOnly.content[0].text).title, 'Text only');
+  await assert.rejects(() => tool.execute('fixture', { selection: `http://100.64.0.1:43827/p/${project.id}/?entry=${textPost.id}&selection=${selection.id}` }, undefined, undefined, ctx), /one selection/);
+  console.log('PASS real Pi loader: /canvas, canvas_read and canvas_add discovered; immutable images, agent entries, text fidelity and project isolation checked');
 } finally { rmSync(fixture, { recursive: true, force: true }); }
