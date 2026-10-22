@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tgz
+.uat/
+vendor/font-licenses/*.sfd.txt
+vendor/font-licenses/*/*.sfd.txt
+vendor/font-licenses/*-upstream.txt

@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+const fixture = mkdtempSync(join(tmpdir(), 'pi-canvas-loader-'));
+process.env.PI_CANVAS_HOME = join(fixture, 'data');
+const packageRoot = process.env.PI_CANVAS_PACKAGE_ROOT || fileURLToPath(new URL('../', import.meta.url));
+const piRoot = process.env.PI_CANVAS_PI_DIR || join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), '@earendil-works/pi-coding-agent');
+try {
+  const { loadExtensions } = await import(pathToFileURL(join(piRoot, 'dist/core/extensions/loader.js')));
+  const { ensureProject, saveScene, saveSelection } = await import('../lib/store.mjs');
+  const repo = join(fixture, 'project'); mkdirSync(repo);
+  const loaded = await loadExtensions([join(packageRoot, 'index.ts')], repo);
+  assert.deepEqual(loaded.errors, []);
+  const extension = loaded.extensions[0];
+  assert.ok(extension.commands.has('canvas'), 'Pi must discover /canvas');
+  assert.ok(extension.tools.has('canvas_read'), 'Pi must discover canvas_read');
+  const tool = extension.tools.get('canvas_read').definition;
+  const ctx = { cwd: repo };
+  const empty = await tool.execute('fixture', {}, undefined, undefined, ctx);
+  assert.equal(empty.details.elementCount, 0);
+  const project = ensureProject(repo);
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5RYAAAAASUVORK5CYII=';
+  saveScene(project.directory, { revision: 0, elements: [{ id: 'box', type: 'rectangle', x: 0, y: 0, width: 100, height: 100, angle: 0 }], files: {} });
+  const selection = saveSelection(project.directory, { revision: 1, elementIds: ['box'], bounds: { x: 0, y: 0, width: 100, height: 100 }, note: 'Loader probe', image: png });
+  const result = await tool.execute('fixture', { selection: `http://100.64.0.1:43827/p/${project.id}/?selection=${selection.id}` }, undefined, undefined, ctx);
+  assert.equal(result.content[1].type, 'image');
+  assert.equal(result.content[1].mimeType, 'image/png');
+  assert.equal(result.details.selection, selection.id);
+  await assert.rejects(() => tool.execute('fixture', { selection: 'http://100.64.0.1:43827/p/000000000000000000000000/?selection=' + selection.id }, undefined, undefined, ctx), /another project/);
+  console.log('PASS real Pi loader: /canvas + canvas_read discovered; immutable image returned; cross-project link refused');
+} finally { rmSync(fixture, { recursive: true, force: true }); }
