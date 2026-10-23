@@ -35,9 +35,9 @@ The Pi host provides its SDK imports. Dependencies are build-only; the server us
 ## Use
 
 1. Drag a PNG, JPEG or WebP onto the board, or use Insert image.
-2. Draw rectangles, arrows, freehand marks or text.
-3. Select an annotation or region. Add an optional note in the top bar.
-4. Click **Share selection**, then **Copy link**. Paste the link into Pi.
+2. Click **Add comment**, click anywhere on the diagram and type. Press **Esc** to finish. Comments are ordinary editable text on the board: double-click to edit, or select to move/delete them. Rectangles, arrows and freehand marks still work as before.
+3. Click **Share diagram** to capture the entire diagram, including its comments. For a smaller crop, select an annotation or region and click **Share selection**. The top-bar note is optional; you do not need it to comment on the diagram.
+4. Click **Copy link** and paste it into Pi. Both the frozen image and its in-diagram text are available through `canvas_read`; later edits do not change the shared capture.
 5. The agent calls `canvas_read` with the link. It receives the saved annotated crop, note and original image IDs. It can request an original with `asset` (include the selection for its immutable original).
 
 A share freezes the capture, note and associated original images. Its link remains useful even after the live board changes. Opening the link focuses the region; **View saved capture** shows exactly what was shared. Sharing does not itself send a message to an agent or execute the board's text.
@@ -101,6 +101,8 @@ npm run verify
 
 This builds the actual frontend, runs focused native Node tests (project/worktree identity, persistence, stale-write refusal, immutable captures/originals and request/file boundaries), and loads the extension with the installed Pi loader to verify `/canvas`, `canvas_read`, image results and project isolation. Set `PI_CANVAS_PI_DIR` if Pi is not installed under the default global npm location.
 
-The browser acceptance journey is: drop an image → draw an annotation → save/copy a selection link → reopen the link → inspect its saved crop → verify persistence. Test with disposable images; a local Tailnet browser test alone does not prove access from a second physical Mac.
+For the focused, headless annotation/share regression, build first and run `npm run verify:comments` with an installed Playwright and its Chromium. Set `PI_CANVAS_PLAYWRIGHT_MODULE` to its absolute `index.mjs` path if Playwright is not locally resolvable; `PI_CANVAS_SHOTS` optionally saves desktop/phone captures. The script uses disposable loopback data and shuts its browser/server down.
+
+The browser acceptance journey is: open a diagram → Add comment → click/type on the diagram → Share diagram without selecting anything or entering a top-bar note → copy/reopen the link → inspect its saved capture → change the live board → confirm the original capture and text are unchanged. Also check Share selection still works and the phone layout does not overflow. Test with disposable images; a local Tailnet browser test alone does not prove access from a second physical Mac.
 
 Excalidraw is MIT-licensed. See `THIRD_PARTY_NOTICES.md` and the bundled license files. Official integration references: https://docs.excalidraw.com/docs/@excalidraw/excalidraw/integration and https://docs.excalidraw.com/docs/@excalidraw/excalidraw/api/utils/export .
