@@ -1,8 +1,11 @@
 {
   "name": "pi-project-canvas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A private, project-shared Excalidraw board for Pi over Tailscale",
-  "repository": { "type": "git", "url": "https://github.com/moshioshimayo/pi-project-canvas.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moshioshimayo/pi-project-canvas.git"
+  },
   "homepage": "https://github.com/moshioshimayo/pi-project-canvas#readme",
   "type": "module",
   "license": "MIT",
@@ -28,6 +31,7 @@
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",
     "verify": "npm run build && npm test && node scripts/smoke-pi.mjs",
+    "verify:comments": "node scripts/smoke-comments.mjs",
     "prepack": "npm run build"
   },
   "peerDependencies": {
