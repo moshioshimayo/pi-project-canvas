@@ -1,0 +1,12 @@
+Source: https://raw.githubusercontent.com/excalidraw/excalidraw/v0.18.1/packages/excalidraw/fonts/Virgil/index.ts
+Preserved upstream copyright/license metadata and registration source.
+
+import Virgil from "./Virgil-Regular.woff2";
+
+import { type ExcalidrawFontFaceDescriptor } from "../Fonts";
+
+export const VirgilFontFaces: ExcalidrawFontFaceDescriptor[] = [
+  {
+    uri: Virgil,
+  },
+];

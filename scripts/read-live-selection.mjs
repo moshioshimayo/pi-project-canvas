@@ -1,0 +1,27 @@
+// Live UAT companion: use Pi's real loader/tool to inspect a browser-created selection.
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const pi = process.env.PI_CANVAS_PI_DIR || join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), '@earendil-works/pi-coding-agent');
+const { loadExtensions } = await import(pathToFileURL(join(pi, 'dist/core/extensions/loader.js')));
+const loaded = await loadExtensions([join(root, 'index.ts')], root);
+assert.deepEqual(loaded.errors, []);
+const messages = [];
+loaded.runtime.sendMessage = message => { messages.push(message); };
+await loaded.extensions[0].commands.get('canvas').handler('', { cwd: root, ui: { setStatus() {}, notify(text, level) { if (level === 'error') throw new Error(text); } } });
+assert.ok(messages[0]?.content.includes('http://100.'), 'the real /canvas handler must reuse the live service and return its URL');
+const definition = loaded.extensions[0].tools.get('canvas_read').definition;
+const result = await definition.execute('live-uat', { selection: process.argv[2] }, undefined, undefined, { cwd: root });
+assert.equal(result.content[1].type, 'image');
+const metadata = JSON.parse(result.content[0].text);
+const original = await definition.execute('live-uat-original', { selection: process.argv[2], asset: metadata.originalImageIds[0] }, undefined, undefined, { cwd: root });
+const originalBytes = Buffer.from(original.content[1].data, 'base64');
+assert.equal(originalBytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+if (process.argv[3]) assert.deepEqual(originalBytes, readFileSync(process.argv[3]));
+mkdirSync(join(root, '.uat'), { recursive: true });
+writeFileSync(join(root, '.uat/agent-selection.png'), Buffer.from(result.content[1].data, 'base64'));
+writeFileSync(join(root, '.uat/agent-proof.json'), JSON.stringify({ ...metadata, cropBytes: Buffer.from(result.content[1].data, 'base64').length, originalBytes: Buffer.from(original.content[1].data, 'base64').length }, null, 2));
+console.log('PASS browser-created selection read through Pi tool:', metadata.id, metadata.note, `originalBytes=${Buffer.from(original.content[1].data, 'base64').length}`);
